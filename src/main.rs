@@ -8,59 +8,18 @@ trait WriteOwned {
 
     async fn writev(&self, list: Vec<Vec<u8>>) -> BufResult<usize, Vec<Vec<u8>>> {
         eprintln!("WriteOwned::write_v with {} buffers", list.len());
-        let mut out_list = Vec::with_capacity(list.len());
-        let mut list = list.into_iter();
-        let mut total = 0;
-
-        while let Some(buf) = list.next() {
-            let buf_len = 1;
-            let (res, buf) = self.write(buf).await;
-            out_list.push(buf);
-
-            match res {
-                Ok(0) => {
-                    out_list.extend(list);
-                    return (
-                        Err(std::io::Error::new(
-                            std::io::ErrorKind::WriteZero,
-                            "write zero",
-                        )),
-                        out_list,
-                    );
-                }
-                Ok(n) => {
-                    total += n;
-                    if n < buf_len {
-                        // partial write, return the buffer list so the caller
-                        // might choose to try the write again
-                        out_list.extend(list);
-                        return (Ok(total), out_list);
-                    }
-                }
-                Err(e) => {
-                    out_list.extend(list);
-                    return (Err(e), out_list);
-                }
-            }
-        }
-
-        (Ok(total), out_list)
+        todo!()
     }
 
-    async fn writev_all(&self, mut list: Vec<Vec<u8>>) -> std::io::Result<()> {
-        while !list.is_empty() {
-            eprintln!(
-                "WriteOwned::writev_all, calling writev with {} items",
-                list.len()
-            );
-            eprintln!("self's type is {}", std::any::type_name::<Self>());
-            let res;
-            (res, _) = self.writev(list).await;
-
-            todo!();
-        }
-
-        Ok(())
+    async fn writev_all(&self, list: Vec<Vec<u8>>) -> std::io::Result<()> {
+        eprintln!(
+            "WriteOwned::writev_all, calling writev with {} items",
+            list.len()
+        );
+        eprintln!("self's type is {}", std::any::type_name::<Self>());
+        let (res, _) = self.writev(list).await;
+        res?;
+        todo!()
     }
 }
 
