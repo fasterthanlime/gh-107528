@@ -249,9 +249,7 @@ trait WriteOwned {
     }
 
     /// Write a list of buffers, re-trying the write if the kernel does a partial write.
-    async fn writev_all<B: IoBuf>(&self, list: Vec<B>) -> std::io::Result<()> {
-        let mut list: Vec<_> = list.into_iter().map(BufOrSlice::Buf).collect();
-
+    async fn writev_all<B: IoBuf>(&self, mut list: Vec<B>) -> std::io::Result<()> {
         while !list.is_empty() {
             eprintln!(
                 "WriteOwned::writev_all, calling writev with {} items",
@@ -262,34 +260,7 @@ trait WriteOwned {
             (res, list) = self.writev(list).await;
             let n = res?;
 
-            if n == 0 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::WriteZero,
-                    "write zero",
-                ));
-            }
-
-            let mut n = n;
-            list = list
-                .into_iter()
-                .filter_map(|item| {
-                    if n == 0 {
-                        Some(item)
-                    } else {
-                        let item_len = item.len();
-
-                        if n >= item_len {
-                            n -= item_len;
-                            None
-                        } else {
-                            let item = item.consume(n);
-                            n = 0;
-                            Some(item)
-                        }
-                    }
-                })
-                .collect();
-            assert_eq!(n, 0);
+            todo!();
         }
 
         Ok(())
@@ -305,63 +276,6 @@ impl WriteOwned for TcpStream {
     async fn writev<B: IoBuf>(&self, list: Vec<B>) -> BufResult<usize, Vec<B>> {
         eprintln!("TcpStream::write_v with {} buffers", list.len());
         TcpStream::writev(self, list).await
-    }
-}
-enum BufOrSlice<B: IoBuf> {
-    Buf(B),
-    Slice(Slice<B>),
-}
-
-unsafe impl<B: IoBuf> IoBuf for BufOrSlice<B> {
-    fn stable_ptr(&self) -> *const u8 {
-        match self {
-            BufOrSlice::Buf(b) => b.stable_ptr(),
-            BufOrSlice::Slice(s) => s.stable_ptr(),
-        }
-    }
-
-    fn bytes_init(&self) -> usize {
-        match self {
-            BufOrSlice::Buf(b) => b.bytes_init(),
-            BufOrSlice::Slice(s) => s.bytes_init(),
-        }
-    }
-
-    fn bytes_total(&self) -> usize {
-        match self {
-            BufOrSlice::Buf(b) => b.bytes_total(),
-            BufOrSlice::Slice(s) => s.bytes_total(),
-        }
-    }
-}
-
-impl<B: IoBuf> BufOrSlice<B> {
-    fn len(&self) -> usize {
-        match self {
-            BufOrSlice::Buf(b) => b.bytes_init(),
-            BufOrSlice::Slice(s) => s.len(),
-        }
-    }
-
-    /// Consume the first `n` bytes of the buffer (assuming they've been written).
-    /// This turns a `BufOrSlice::Buf` into a `BufOrSlice::Slice`
-    fn consume(self, n: usize) -> Self {
-        eprintln!(
-            "consuming {n}, we're a {}",
-            match self {
-                BufOrSlice::Buf(_) => "Buf",
-                BufOrSlice::Slice(_) => "Slice",
-            }
-        );
-        assert!(n <= self.len());
-
-        match self {
-            BufOrSlice::Buf(b) => BufOrSlice::Slice(b.slice(n..)),
-            BufOrSlice::Slice(s) => {
-                let n = s.begin() + n;
-                BufOrSlice::Slice(s.into_inner().slice(n..))
-            }
-        }
     }
 }
 
